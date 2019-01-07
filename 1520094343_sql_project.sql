@@ -53,16 +53,16 @@ AND membercost > 0.0
 
 /* Q4: How can you retrieve the details of facilities with ID 1 and 5?
 Write the query without using the OR operator. */
-SELECT * 
+SELECT *
 FROM Facilities
 WHERE facid
-IN ( 1, 2 ) 
+IN ( 1, 5 )
 
 /* Q5: How can you produce a list of facilities, with each labelled as
 'cheap' or 'expensive', depending on if their monthly maintenance cost is
 more than $100? Return the name and monthly maintenance of the facilities
 in question. */
-SELECT name, monthlymaintenance, 
+SELECT name, monthlymaintenance,
 CASE WHEN monthlymaintenance > 100
 THEN  'expensive'
 ELSE  'cheap'
@@ -76,32 +76,20 @@ FROM Members
 JOIN (
 	SELECT MAX( joindate ) AS DATE
 	FROM Members
-     ) latest 
+     ) latest
 ON latest.date = Members.joindate
 
 /* Q7: How can you produce a list of all members who have used a tennis court?
 Include in your output the name of the court, and the name of the member
 formatted as a single column. Ensure no duplicate data, and order by
 the member name. */
-SELECT DISTINCT CONCAT( firstname,  ' ', surname ) AS "Tennis Court 1"
-FROM (
-
-	SELECT bookid, surname, firstname
-	FROM Bookings book
-	JOIN Members mem 
-	ON mem.memid = book.memid
-	) book_mem
-JOIN (
-
-	SELECT bookid, name
-	FROM Bookings book
-	JOIN Facilities fac 
-	ON book.facid = fac.facid
-	WHERE fac.name =  'Tennis Court 1'
-	) book_fac 
-ON book_mem.bookid = book_fac.bookid
-WHERE surname !=  'GUEST'
-ORDER BY surname, firstname
+SELECT DISTINCT CONCAT( mem.firstname,  ' ', mem.surname, ', ',  fac.name ) AS "Tennis Players"
+FROM Bookings book
+JOIN Members mem ON mem.memid = book.memid
+JOIN Facilities fac ON book.facid = fac.facid
+WHERE fac.name IN ( 'Tennis Court 1' , 'Tennis Court 2' )
+AND mem.surname !=  'GUEST'
+ORDER BY mem.surname, mem.firstname
 
 /* Q8: How can you produce a list of bookings on the day of 2012-09-14 which
 will cost the member (or guest) more than $30? Remember that guests have
@@ -110,7 +98,7 @@ the guest user's ID is always 0. Include in your output the name of the
 facility, the name of the member formatted as a single column, and the cost.
 Order by descending cost, and do not use any subqueries. */
 SELECT fac.name AS Facility,
-CONCAT( mem.firstname,  ' ', mem.surname ) AS  "Customer name", 
+CONCAT( mem.firstname,  ' ', mem.surname ) AS  "Customer name",
 CASE WHEN mem.memid =0
 	THEN fac.guestcost * book.slots
 	ELSE fac.membercost * book.slots
@@ -123,44 +111,45 @@ WHERE CASE WHEN mem.memid =0
 	ELSE fac.membercost * book.slots
 	END >30
 AND CAST( book.starttime AS DATE ) =  '2012-09-14'
-ORDER BY Cost DESC 
+ORDER BY Cost DESC
+
 /* Q9: This time, produce the same result as in Q8, but using a subquery. */
-SELECT name AS Facility,
-CONCAT( firstname,  ' ', surname ) AS  "Customer name",
-cost
+SELECT book_cost.facname AS Facility,
+CONCAT( book_cost.firstname,  ' ', book_cost.surname ) AS  "Customer name",
+book_cost.cost AS Cost
 FROM Bookings book
 JOIN (
-	SELECT bookid, firstname, surname, name, 
+	SELECT book.bookid, 
+	mem.firstname AS firstname, mem.surname AS surname, 
+	fac.name AS facname,
 	CASE WHEN mem.memid =0 THEN fac.guestcost * book.slots
 	ELSE fac.membercost * book.slots
 	END AS cost
 	FROM Facilities fac
 	JOIN Bookings book ON fac.facid = book.facid
 	JOIN Members mem ON mem.memid = book.memid
-	) book_cost 
+	) book_cost
 ON book_cost.bookid = book.bookid
 WHERE book_cost.cost >30
 AND CAST( book.starttime AS DATE ) = '2012-09-14'
-ORDER BY book_cost.cost DESC 
+ORDER BY book_cost.cost DESC
 
 /* Q10: Produce a list of facilities with a total revenue less than 1000.
 The output of facility name and total revenue, sorted by revenue. Remember
 that there's a different cost for guests and members! */
-SELECT * FROM (
-    SELECT name AS Facility,
-	SUM(book_cost.cost) as Revenue
-	FROM Bookings book
-	JOIN (
-		SELECT bookid, firstname, surname, name, 
-		CASE WHEN mem.memid =0 THEN fac.guestcost * book.slots
-		ELSE fac.membercost * book.slots
-		END AS cost
-		FROM Facilities fac
-		JOIN Bookings book ON fac.facid = book.facid
-		JOIN Members mem ON mem.memid = book.memid
-		) book_cost 
-	ON book_cost.bookid = book.bookid
-	GROUP BY name
-	ORDER BY 2 DESC
-    ) rev
-WHERE rev.Revenue < 1000
+SELECT book_cost.facname AS Facility,
+SUM(book_cost.cost) as Revenue
+FROM Bookings book
+JOIN (
+	SELECT book.bookid, mem.firstname, mem.surname, fac.name AS facname,
+	CASE WHEN mem.memid =0 THEN fac.guestcost * book.slots
+	ELSE fac.membercost * book.slots
+	END AS cost
+	FROM Facilities fac
+	JOIN Bookings book ON fac.facid = book.facid
+	JOIN Members mem ON mem.memid = book.memid
+	) book_cost
+ON book_cost.bookid = book.bookid
+GROUP BY book_cost.facname
+HAVING SUM(book_cost.cost) < 1000
+ORDER BY 2 DESC
